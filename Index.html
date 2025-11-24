@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="Turn ANY video into 50 viral shorts in 30 seconds">
+    <title>ClipCash - Viral Short Generator</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #10b981;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; width: 100%; flex: 1; }
+        .text-center { text-align: center; }
+        .flex-col { display: flex; flex-direction: column; }
+        .items-center { align-items: center; }
+        .gap-4 { gap: 1rem; }
+        .mt-4 { margin-top: 1rem; }
+        
+        /* Typography */
+        h1 { font-size: 2.2rem; line-height: 1.1; margin-bottom: 10px; background: linear-gradient(to right, #c084fc, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+        p { color: var(--text-muted); line-height: 1.6; }
+
+        /* UI Elements */
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        input {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid #334155;
+            background: #020617;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input:focus { border-color: var(--primary); }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s, background 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-green { background: var(--accent); }
+        .btn-dark { background: #334155; }
+
+        /* Pricing Grid */
+        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+        .price-card {
+            background: rgba(255,255,255,0.03);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .price-card:hover { border-color: var(--primary); background: rgba(139, 92, 246, 0.1); }
+        .price-amount { font-size: 1.8rem; font-weight: bold; display: block; margin-bottom: 5px; }
+        .price-desc { font-size: 0.9rem; color: var(--text-muted); }
+
+        /* Results List */
+        .clip-item {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+        }
+        .clip-header { font-weight: bold; margin-bottom: 8px; color: #fff; display: flex; justify-content: space-between; }
+        .clip-caption { font-size: 0.95rem; color: #cbd5e1; margin-bottom: 8px; }
+        .clip-tags { color: var(--primary); font-size: 0.85rem; }
+
+        /* Loading Animation */
+        .loader {
+            width: 48px; height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: #064e3b; padding: 12px 24px;
+            border-radius: 50px; font-weight: bold; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s; z-index: 100;
+        }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <!-- VIEW: LANDING -->
+    <div id="view-landing" class="container flex-col items-center">
+        <div style="margin-top: 40px; margin-bottom: 20px;">
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15.6 11.6L22 7v10l-6.4-4.5v-1zM4 5h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7c0-1.1.9-2 2-2z"/>
+            </svg>
+        </div>
+        <h1 class="text-center">Turn ANY video into 50 viral shorts in 30 seconds</h1>
+        <p class="text-center" style="margin-bottom: 40px;">Paste a link from YouTube, TikTok, or Instagram Reels.</p>
+
+        <div class="card">
+            <input type="text" id="video-input" placeholder="Paste video link here...">
+            <button class="btn" onclick="startProcess()">Analyze Video</button>
+            <p style="font-size: 12px; text-align: center; margin-top: 12px;">Trusted by 10,000+ creators</p>
+        </div>
+    </div>
+
+    <!-- VIEW: PROCESSING / PAYWALL -->
+    <div id="view-processing" class="container flex-col items-center hidden">
+        <div id="loading-stage" class="text-center mt-4">
+            <span class="loader"></span>
+            <h2 id="loading-text">Analyzing Content...</h2>
+        </div>
+
+        <div id="paywall-stage" class="hidden w-full" style="width: 100%">
+            <h2 class="text-center">Analysis Complete!</h2>
+            <p class="text-center">We found high-viral potential. Choose a package to unlock your clips.</p>
+            
+            <div class="pricing-grid">
+                <!-- LINK 1: Replace '#' with your actual Stripe/Gumroad payment link -->
+                <div class="price-card text-center" onclick="mockPayment(20)">
+                    <span class="price-amount">$5</span>
+                    <span class="price-desc">20 Viral Clips</span>
+                </div>
+                
+                <!-- LINK 2: Replace '#' with your actual Stripe/Gumroad payment link -->
+                <div class="price-card text-center" style="border-color: var(--primary); background: rgba(139, 92, 246, 0.1);" onclick="mockPayment(50)">
+                    <span class="price-amount">$9</span>
+                    <span class="price-desc">50 Viral Clips</span>
+                </div>
+            </div>
+            
+            <p style="font-size: 0.8rem; text-align: center; margin-top: 20px; opacity: 0.6;">
+                Instant delivery. 100% Money-back guarantee.
+            </p>
+        </div>
+    </div>
+
+    <!-- VIEW: RESULTS -->
+    <div id="view-results" class="container hidden">
+        <div class="text-center mb-4">
+            <h2>Your Viral Clips</h2>
+            <p>Success! Here are your generated scripts.</p>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button class="btn btn-dark" onclick="copyAll()">Copy All</button>
+            <button class="btn btn-dark" onclick="downloadTxt()">Download .TXT</button>
+        </div>
+
+        <div id="results-list">
+            <!-- Items injected by JS -->
+        </div>
+        
+        <button class="btn btn-outline mt-4" onclick="location.reload()">Start New Video</button>
+    </div>
+
+    <div id="toast" class="toast">Copied to clipboard!</div>
+
+    <script>
+        // --- DATA SIMULATION ---
+        const hooks = [
+            "Stop doing this if you want to grow.", "The secret nobody tells you about...", 
+            "I tried this for 30 days and...", "This one hack changed everything.",
+            "Why 99% of people fail at...", "POV: You finally figured it out.",
+            "Don't scroll past this.", "3 signs you're on the right track.",
+            "The hard truth about...", "Save this for later."
+        ];
+        
+        const bodies = [
+            "Most people ignore the basics. Focus on consistency. Start today.",
+            "It wasn't luck. It was strategy. Here is the exact blueprint.",
+            "You don't need more resources, you need more resourcefulness.",
+            "If you want different results, stop doing the same things.",
+            "Simple doesn't mean easy, but it works. Try this method."
+        ];
+
+        const tags = "#viral #growth #mindset #fyp #trending #hustle #learnontiktok #motivation #tips #creator #marketing #2024";
+
+        let generatedClips = [];
+
+        // --- NAVIGATION ---
+        function switchView(viewId) {
+            ['view-landing', 'view-processing', 'view-results'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        // --- LOGIC ---
+        function startProcess() {
+            const input = document.getElementById('video-input').value;
+            if(!input) {
+                alert("Please paste a link first!");
+                return;
+            }
+
+            switchView('view-processing');
+            
+            // Simulate Analysis (2 seconds)
+            setTimeout(() => {
+                document.getElementById('loading-text').innerText = "Generating Viral Angles...";
+            }, 1000);
+
+            setTimeout(() => {
+                document.getElementById('loading-stage').classList.add('hidden');
+                document.getElementById('paywall-stage').classList.remove('hidden');
+            }, 2500);
+        }
+
+        function mockPayment(amount) {
+            // In production, this would be: window.location.href = "YOUR_STRIPE_LINK";
+            // For this demo, we simulate a successful payment return:
+            
+            document.getElementById('paywall-stage').classList.add('hidden');
+            document.getElementById('loading-stage').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = "Finalizing your order...";
+            
+            setTimeout(() => {
+                generateContent(amount);
+                switchView('view-results');
+            }, 1500);
+        }
+
+        function generateContent(count) {
+            const list = document.getElementById('results-list');
+            list.innerHTML = '';
+            generatedClips = [];
+
+            for(let i=1; i<=count; i++) {
+                const hook = hooks[Math.floor(Math.random() * hooks.length)];
+                const body = bodies[Math.floor(Math.random() * bodies.length)];
+                const content = {
+                    id: i,
+                    hook: hook,
+                    body: body,
+                    tags: tags
+                };
+                generatedClips.push(content);
+
+                const div = document.createElement('div');
+                div.className = 'clip-item';
+                div.innerHTML = `
+                    <div class="clip-header">
+                        <span>#${i}</span>
+                        <span style="font-size:0.8rem; opacity:0.7">Viral Score: 9${Math.floor(Math.random()*9)}/100</span>
+                    </div>
+                    <div style="font-weight:bold; margin-bottom:5px; color:#fff;">HOOK: ${hook}</div>
+                    <div class="clip-caption">${body}</div>
+                    <div class="clip-tags">${tags}</div>
+                `;
+                list.appendChild(div);
+            }
+        }
+
+        // --- EXPORT TOOLS ---
+        function copyAll() {
+            const text = generatedClips.map(c => `Clip ${c.id}\nHOOK: ${c.hook}\n${c.body}\n${c.tags}\n`).join('\n---\n\n');
+            navigator.clipboard.writeText(text).then(() => showToast());
+        }
+
+        function downloadTxt() {
+            const text = generatedClips.map(c => `Clip ${c.id}\nHOOK: ${c.hook}\n${c.body}\n${c.tags}\n`).join('\n---\n\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ClipCash-Ideas.txt';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function showToast() {
+            const t = document.getElementById('toast');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        // --- PWA REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW Registered'))
+                    .catch(err => console.log('SW Error', err));
+            });
+        }
+    </script>
+</body>
+</html>
+
+
