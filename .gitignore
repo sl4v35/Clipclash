@@ -1,0 +1,5 @@
+# Python slicer virtual environment
+.venv-slicer/
+
+# Large generated print artifact (delivered separately; regenerate with slice.py)
+guy_harvey_sailfish_ender3v2_pla.gcode
