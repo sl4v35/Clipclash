@@ -22,22 +22,25 @@ INFILL_ANGLE   = 45.0 # degrees
 SOLID_LAYERS   = 3    # solid bottom + top layers
 
 # speeds in mm/s -> converted to mm/min for G-code F
-SPEED_FIRST = 25.0
-SPEED_WALL  = 40.0
-SPEED_INFILL= 80.0
-SPEED_SOLID = 40.0
-SPEED_TRAVEL= 150.0
-SPEED_Z     = 30.0    # mm/s for Z moves
+SPEED_FIRST = 18.0      # first layer: slow for bed adhesion
+SPEED_WALL  = 30.0      # walls: slower = steadier extrusion
+SPEED_INFILL= 40.0      # infill: was 80, too fast for reliable flow
+SPEED_SOLID = 30.0      # solid layers
+SPEED_TRAVEL= 100.0     # travel: was 150, reduce jerk/underextrusion risk
+SPEED_Z     = 30.0      # mm/s for Z moves
+
+# extrusion multiplier (>1.0 pushes more filament; helps bed adhesion)
+EXTRUSION_MULTIPLIER = 1.15
 
 # temperatures
-TEMP_NOZZLE_FIRST = 210
-TEMP_NOZZLE       = 200
-TEMP_BED_FIRST    = 60   # aluminum bed, PLA
-TEMP_BED          = 55
+TEMP_NOZZLE_FIRST = 220  # hotter first layer = better flow + adhesion
+TEMP_NOZZLE       = 205
+TEMP_BED_FIRST    = 65   # hotter aluminum bed = better first-layer stick
+TEMP_BED          = 60
 
 # derived
 LAYER_H_MM   = LAYER_H
-E_PER_MM     = (LINE_W * LAYER_H) / (math.pi * (FIL_DIA/2.0)**2)  # mm filament / mm travel
+E_PER_MM     = ((LINE_W * LAYER_H) / (math.pi * (FIL_DIA/2.0)**2)) * EXTRUSION_MULTIPLIER  # mm filament / mm travel
 WALL_INSET   = LINE_W / 2.0                    # outer wall centerline inset from edge
 INFILL_SPACING = LINE_W / INFILL_DENSITY       # mm
 INFILL_INSET   = WALL_INSET + NUM_WALLS*LINE_W          # infill meets the walls
