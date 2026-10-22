@@ -22,18 +22,23 @@ INFILL_ANGLE   = 45.0 # degrees
 SOLID_LAYERS   = 3    # solid bottom + top layers
 
 # speeds in mm/s -> converted to mm/min for G-code F
-SPEED_FIRST = 18.0      # first layer: slow for bed adhesion
-SPEED_WALL  = 30.0      # walls: slower = steadier extrusion
-SPEED_INFILL= 40.0      # infill: was 80, too fast for reliable flow
-SPEED_SOLID = 30.0      # solid layers
-SPEED_TRAVEL= 100.0     # travel: was 150, reduce jerk/underextrusion risk
+SPEED_FIRST = 15.0      # first layer: slow for maximum bed adhesion
+SPEED_WALL  = 25.0      # walls: slower for steadier extrusion
+SPEED_INFILL= 30.0      # infill: was 80, now much slower for reliable flow
+SPEED_SOLID = 25.0      # solid layers
+SPEED_TRAVEL= 80.0      # travel: reduced to minimize vibration
 SPEED_Z     = 30.0      # mm/s for Z moves
 
 # extrusion multiplier (>1.0 pushes more filament; helps bed adhesion)
-EXTRUSION_MULTIPLIER = 1.15
+EXTRUSION_MULTIPLIER = 1.30
+FIRST_LAYER_MULT     = 1.40   # extra flow on first layer for squish
+
+# brim for bed adhesion (printed on first layer around the part)
+BRIM_WIDTH  = 10.0      # mm
+BRIM_LINES  = max(1, int(BRIM_WIDTH / LINE_W))
 
 # temperatures
-TEMP_NOZZLE_FIRST = 220  # hotter first layer = better flow + adhesion
+TEMP_NOZZLE_FIRST = 225  # hotter first layer = better flow + adhesion
 TEMP_NOZZLE       = 205
 TEMP_BED_FIRST    = 65   # hotter aluminum bed = better first-layer stick
 TEMP_BED          = 60
@@ -116,6 +121,20 @@ if INFILL_REGION.is_empty or INFILL_REGION.area <= 0:
 
 print(f"Wall contours: {len(wall_centers)}   infill spacing: {INFILL_SPACING:.2f} mm")
 
+# brim contours (outward offsets from region, printed on first layer only)
+brim_centers = []
+d = LINE_W
+for _ in range(BRIM_LINES):
+    off = REGION.buffer(d)
+    if off.is_empty or off.area <= 0:
+        break
+    ring = getattr(off, "exterior", None)
+    if ring is not None:
+        brim_centers.append([(float(a), float(b)) for a, b in ring.coords[:-1]])
+    d += LINE_W
+
+print(f"Brim contours: {len(brim_centers)}   brim width: {BRIM_WIDTH} mm")
+
 # ----------------------------------------------------------------------------
 # G-code writer
 # ----------------------------------------------------------------------------
@@ -132,13 +151,13 @@ def travel(x, y, feed):
         emit(f"G1 X{x:.3f} Y{y:.3f} F{feed:.1f}")
         cx, cy = x, y
 
-def extrude_to(x, y, feed):
+def extrude_to(x, y, feed, mult=1.0):
     """Move to (x,y) extruding, advancing absolute E."""
     global cx, cy, ce
     dist = math.hypot(x-cx, y-cy)
     if dist < 1e-9:
         return
-    ce += E_PER_MM * dist
+    ce += E_PER_MM * mult * dist
     emit(f"G1 X{x:.3f} Y{y:.3f} E{ce:.4f} F{feed:.1f}")
     cx, cy = x, y
 
@@ -157,17 +176,17 @@ def line_coords(g):
         return [list(c.coords) for c in g.geoms]
     return []  # Point, GeometryCollection, Polygon -> skip
 
-def print_path(points, feed, closed=True):
+def print_path(points, feed, closed=True, mult=1.0):
     """points: list of (x,y). Extrude through them; optionally close the loop."""
     if not points:
         return
     travel(points[0][0], points[0][1], s(SPEED_TRAVEL))
     for p in points[1:]:
-        extrude_to(p[0], p[1], feed)
+        extrude_to(p[0], p[1], feed, mult)
     if closed and len(points) > 1:
-        extrude_to(points[0][0], points[0][1], feed)
+        extrude_to(points[0][0], points[0][1], feed, mult)
 
-def print_infill(feed):
+def print_infill(feed, mult=1.0):
     """Parallel infill lines clipped to INFILL_REGION."""
     theta = math.radians(INFILL_ANGLE)
     u = (math.cos(theta), math.sin(theta))
@@ -193,10 +212,10 @@ def print_infill(feed):
             first = False
             travel(coords[0][0], coords[0][1], s(SPEED_TRAVEL))
             for p in coords[1:]:
-                extrude_to(p[0], p[1], feed)
+                extrude_to(p[0], p[1], feed, mult)
         d += INFILL_SPACING
 
-def print_solid(feed, angle):
+def print_solid(feed, angle, mult=1.0):
     """Solid fill: parallel lines at `angle`, spacing = line width, over REGION."""
     theta = math.radians(angle)
     u = (math.cos(theta), math.sin(theta))
@@ -218,7 +237,7 @@ def print_solid(feed, angle):
                 continue
             travel(coords[0][0], coords[0][1], s(SPEED_TRAVEL))
             for p in coords[1:]:
-                extrude_to(p[0], p[1], feed)
+                extrude_to(p[0], p[1], feed, mult)
         d += spacing
 
 # ============================================================================
@@ -269,16 +288,22 @@ for i in range(N_LAYERS):
 
     if solid:
         feed = s(SPEED_FIRST if i == 0 else SPEED_SOLID)
+        mult = FIRST_LAYER_MULT if i == 0 else 1.0
         # cross-hatch solid fill (bottom layer 0 = bed adhesion)
-        print_solid(feed, 0)
+        print_solid(feed, 0, mult=mult)
         if i > 0 or N_LAYERS > 1:
-            print_solid(feed, 90)
+            print_solid(feed, 90, mult=mult)
     else:
         wall_feed = s(SPEED_FIRST if i == 0 else SPEED_WALL)
         infill_feed = s(SPEED_FIRST if i == 0 else SPEED_INFILL)
+        mult = FIRST_LAYER_MULT if i == 0 else 1.0
+        # print brim first on layer 0 for bed adhesion
+        if i == 0:
+            for contour in brim_centers:
+                print_path(contour, wall_feed, closed=True, mult=mult)
         for contour in wall_centers:
-            print_path(contour, wall_feed, closed=True)
-        print_infill(infill_feed)
+            print_path(contour, wall_feed, closed=True, mult=mult)
+        print_infill(infill_feed, mult=mult)
 
 # ============================================================================
 # END G-CODE
